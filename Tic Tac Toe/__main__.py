@@ -1,5 +1,5 @@
-from game_gui import StartMenu
+from game_gui import MainLoop
 
 if __name__ == "__main__":
     print("Created by Ishaan Bose")
-    StartMenu().on_execute()
+    MainLoop().on_execute()
