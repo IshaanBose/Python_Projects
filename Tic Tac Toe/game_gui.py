@@ -11,6 +11,7 @@ except ModuleNotFoundError:
     quit()
 import os
 from game_logic import GameLogic
+from pygame_button_element import Button
 
 _ROOT = Tk()
 COLOURS = {'black' : (0, 0, 0), 'white' : (255, 255, 255), 'green':(0, 255, 0), 'red': (255, 0, 0), 'light blue': (145, 231, 255), 
@@ -41,8 +42,8 @@ class MainLoop():
             for event in pygame.event.get():
                 self.curr_frame.on_event(event)
             if type(self.curr_frame) == StartMenu:
-                self.curr_frame.draw_radio_buttons()
                 self.curr_frame.draw_buttons()
+                self.curr_frame.draw_radio_buttons()
                 self.curr_frame.set_selected()
             DISPLAY.blit(self.curr_frame._display, (0, 0))
             pygame.display.update()
@@ -53,6 +54,8 @@ class StartMenu():
         self.main_loop = main_loop
         self.main_loop.curr_frame = self
         self._display = None
+        self.start_btn = None
+        self.quit_btn = None
         
         self.on_init()
     
@@ -62,6 +65,8 @@ class StartMenu():
         self._running = True
         self.difficulty = {'Easy': True, 'Med': False, 'Hard': False}
         self.mode = {'Single': True, 'Multi': False}
+        self.start_btn = Button(self._display, 'Start', (100, 380), (100, 40), COLOURS['grey'], COLOURS['dark grey'], COLOURS['dark green'], COLOURS['green'], action=self.start)
+        self.quit_btn = Button(self._display, 'Quit', (300, 380), (100, 40), COLOURS['grey'], COLOURS['dark grey'], COLOURS['dark red'], COLOURS['red'], action=self.quit_fnt)
         
         self.draw_static_elements()
         DISPLAY.blit(self._display, (0, 0))
@@ -96,27 +101,8 @@ class StartMenu():
         self._display.blit(multi_pl, (315, (DHEIGHT // 6) + 202))
     
     def draw_buttons(self):
-        rb_font = pygame.font.SysFont('sourcesanspro', 23)
-        start_txt = rb_font.render('Start', True, COLOURS['black'])
-        quit_txt = rb_font.render('Quit', True, COLOURS['black'])
-        mouse_pos = pygame.mouse.get_pos()
-        
-        if 198 >= mouse_pos[0] >= 102 and 418 >= mouse_pos[1] >= 382: # start button
-            pygame.draw.rect(self._display, COLOURS['green'], (100, 380, 100, 40))
-            pygame.draw.rect(self._display, COLOURS['dark grey'], (102, 382, 96, 36))
-        else:
-            pygame.draw.rect(self._display, COLOURS['dark green'], (100, 380, 100, 40))
-            pygame.draw.rect(self._display, COLOURS['grey'], (102, 382, 96, 36))
-        
-        if 398 >= mouse_pos[0] >= 302 and 418 >= mouse_pos[1] >= 382: # quit button
-            pygame.draw.rect(self._display, COLOURS['red'], (300, 380, 100, 40))
-            pygame.draw.rect(self._display, COLOURS['dark grey'], (302, 382, 96, 36))
-        else:
-            pygame.draw.rect(self._display, COLOURS['dark red'], (300, 380, 100, 40))
-            pygame.draw.rect(self._display, COLOURS['grey'], (302, 382, 96, 36))
-        
-        self._display.blit(start_txt, (125, 384))
-        self._display.blit(quit_txt, (329, 384))
+        self.start_btn.draw_button()
+        self.quit_btn.draw_button()
     
     def draw_radio_buttons(self):
         mouse_pos = pygame.mouse.get_pos()
@@ -170,7 +156,11 @@ class StartMenu():
             pygame.draw.circle(self._display, COLOURS['blue'], (300, (DHEIGHT // 6) + 218), 5)
     
     def on_event(self, event):
-        if event.type == QUIT:
+        if self.start_btn.on_event(event):
+            return
+        elif self.quit_btn.on_event(event):
+            return
+        elif event.type == QUIT:
             self.main_loop._running = False
         elif event.type == MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
@@ -193,18 +183,36 @@ class StartMenu():
                         self.mode['Single'] = True
                     else:
                         self.mode['Multi'] = True
-            elif 198 >= mouse_pos[0] >= 102 and 418 >= mouse_pos[1] >= 382:
-                difficulty, mode = None, None
-                for i in self.difficulty.keys():
-                    if self.difficulty[i]:
-                        difficulty = i
-                for i in self.mode.keys():
-                    if self.mode[i]:
-                        mode = i
-                
-                GameBoard(self.main_loop, difficulty, mode)
-            elif 398 >= mouse_pos[0] >= 302 and 418 >= mouse_pos[1] >= 382:
-                self.main_loop._running = False
+    
+    def start(self):
+        difficulty, mode = None, None
+        for i in self.difficulty.keys():
+            if self.difficulty[i]:
+                difficulty = i
+        for i in self.mode.keys():
+            if self.mode[i]:
+                mode = i
+        
+        GameBoard(self.main_loop, difficulty, mode)
+    
+    def quit_fnt(self):
+        self.main_loop._running = False
+
+class MultiOptionPopup():
+    def __init__(self, main_loop: MainLoop):
+        self._display = None
+        self.main_loop = main_loop
+    
+    def on_init(self):
+        self._display = pygame.Surface((DWIDTH, DHEIGHT))
+        
+        self.draw_static_elements()
+        
+        DISPLAY.blit(self._display, (0, 0))
+        pygame.display.update()
+    
+    def draw_static_elements(self):
+        self._display.fill(COLOURS['white'])
 
 class GameBoard():
     def __init__(self, main_loop: MainLoop, difficulty, mode):
@@ -213,6 +221,8 @@ class GameBoard():
         self.main_loop.curr_frame = self
         self.difficulty = difficulty
         self.mode = mode
+        # if self.mode == 'Single':
+            
         self.game_logic = GameLogic(self, mode, difficulty)
         self.board = [['', '', ''],
                     ['', '', ''],
@@ -223,7 +233,6 @@ class GameBoard():
     def on_init(self):
         self._display = pygame.Surface((DWIDTH, DHEIGHT))
         
-        self._running = True
         self.draw_static_elements()
         DISPLAY.blit(self._display, (0, 0))
         pygame.display.update()
@@ -235,37 +244,26 @@ class GameBoard():
             if event.key == K_BACKSPACE:
                 StartMenu(self.main_loop)
         elif event.type == MOUSEBUTTONDOWN:
-            mouse_pos = pygame.mouse.get_pos()
-            x, y, index1, index2 = 0, 0, 0, 0
-            
-            while index1 != 3:
-                if x + 164 >= mouse_pos[0] >= x and y + 164 >= mouse_pos[1] >= y:
-                    if self.board[index1][index2] == '':
-                        self.place_at(index1, index2, x, y, True)
-                        self.game_logic.turns += 1
-                        
-                        # if self.game_logic.turns >= 5:
-                        #     if self.game_logic.check_win_state():
-                        #         print('Win!')
-                        #         return
-                        #     print('Lose!')
-                        #     return
-                        
-                        if self.game_logic.turns == 9:
-                            print('Game over!')
-                            return
-                        
-                        if self.mode == 'Single':
-                            self.game_logic.run()
-                        break
-                if x + 168 == 504:
-                    x = 0
-                    y += 168
-                    index2 = 0
-                    index1 += 1
-                else:
-                    x += 168
-                    index2 += 1
+            if self.game_logic.turns <= 8 and not self.game_logic.check_win_state():
+                mouse_pos = pygame.mouse.get_pos()
+                x, y, index1, index2 = 0, 0, 0, 0
+                
+                while index1 != 3:
+                    if x + 164 >= mouse_pos[0] >= x and y + 164 >= mouse_pos[1] >= y:
+                        if self.board[index1][index2] == '':
+                            self.place_at(index1, index2, x, y, True)
+                            
+                            if self.mode == 'Single':
+                                self.game_logic.run()
+                            break
+                    if x + 168 == 504:
+                        x = 0
+                        y += 168
+                        index2 = 0
+                        index1 += 1
+                    else:
+                        x += 168
+                        index2 += 1
     
     def place_at(self, index1, index2, x=0, y=0, setxy=False):
         action_font = pygame.font.SysFont('sourcesanspro', 100)
@@ -278,6 +276,15 @@ class GameBoard():
                 action_rect.center = (x + 164 // 2, y + 164 // 2)
                 self._display.blit(action, action_rect)
                 self.board[index1][index2] = self.game_logic.turn
+                
+                if self.game_logic.turns >= 4:
+                    if self.game_logic.check_win_state():
+                        print(self.game_logic.turn, 'wins!')
+                        return
+                    if self.game_logic.turns == 8:
+                        print('Tie!')
+                        return
+                
                 self.game_logic.next_turn()
                 return
             if x + 168 == 504:
