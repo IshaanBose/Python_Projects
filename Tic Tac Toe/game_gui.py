@@ -16,7 +16,7 @@ from pygame_button_element import Button
 _ROOT = Tk()
 COLOURS = {'black' : (0, 0, 0), 'white' : (255, 255, 255), 'green':(0, 255, 0), 'red': (255, 0, 0), 'light blue': (145, 231, 255), 
             'dark green': (0, 138, 14), 'dark grey': (235, 235, 235), 'dark red': (176, 0, 0), 'grey': (222, 222, 222), 
-            'blue': (0, 174, 255)}
+            'blue': (0, 174, 255), 'popup background': (143, 143, 143, 5)}
 DWIDTH, DHEIGHT = 500, 500
 X = int(_ROOT.winfo_screenwidth() * 0.2)
 Y = int(_ROOT.winfo_screenheight() * 0.2)
@@ -36,23 +36,27 @@ class MainLoop():
     
     def on_execute(self):
         self._running = True
-        self.curr_frame = StartMenu(self)
+        self.hand_control(StartMenu(self))
         
         while self._running:
             for event in pygame.event.get():
                 self.curr_frame.on_event(event)
-            if type(self.curr_frame) == StartMenu:
+            if type(self.curr_frame) == StartMenu or type(self.curr_frame) == Popup:
                 self.curr_frame.draw_buttons()
-                self.curr_frame.draw_radio_buttons()
-                self.curr_frame.set_selected()
+                if type(self.curr_frame) == StartMenu:
+                    self.curr_frame.draw_radio_buttons()
+                    self.curr_frame.set_selected()
             DISPLAY.blit(self.curr_frame._display, (0, 0))
             pygame.display.update()
         self.on_cleanup()
+    
+    def hand_control(self, frame):
+        self.curr_frame = frame
 
 class StartMenu():
     def __init__(self, main_loop: MainLoop):
         self.main_loop = main_loop
-        self.main_loop.curr_frame = self
+        self.main_loop.hand_control(self)
         self._display = None
         self.start_btn = None
         self.quit_btn = None
@@ -198,43 +202,88 @@ class StartMenu():
     def quit_fnt(self):
         self.main_loop._running = False
 
-class MultiOptionPopup():
-    def __init__(self, main_loop: MainLoop):
+class Popup():
+    def __init__(self, main_loop: MainLoop, game_board):
         self._display = None
+        self.game_board: GameBoard = game_board
         self.main_loop = main_loop
+        self.main_loop.hand_control(self)
+        self.yes_btn: Button = None
+        self.no_btn: Button = None
+        
+        self.on_init()
     
     def on_init(self):
-        self._display = pygame.Surface((DWIDTH, DHEIGHT))
+        self._display = pygame.Surface((DWIDTH, DHEIGHT), SRCALPHA)
         
+        self.yes_btn = Button(self._display, 'Yes', (133, 250), (100, 40), COLOURS['grey'], COLOURS['dark grey'], COLOURS['dark green'], COLOURS['green'], action=self.yes_fnt)
+        self.no_btn = Button(self._display, 'No', (280, 250), (100, 40), COLOURS['grey'], COLOURS['dark grey'], COLOURS['dark red'], COLOURS['red'], action=self.no_fnt)
         self.draw_static_elements()
         
         DISPLAY.blit(self._display, (0, 0))
         pygame.display.update()
     
+    def on_event(self, event):
+        if event.type == QUIT:
+            self.main_loop._running = False
+        elif self.yes_btn.on_event(event):
+            return
+        elif self.no_btn.on_event(event):
+            return
+    
+    def draw_buttons(self):
+        self.yes_btn.draw_button()
+        self.no_btn.draw_button()
+    
     def draw_static_elements(self):
-        self._display.fill(COLOURS['white'])
+        self._display.fill(COLOURS['popup background'])
+        
+        pygame.draw.rect(self._display, COLOURS['white'], (110, 180, 300, 140))
+        msg_font = pygame.font.SysFont('sourcesanspro', 25)
+        msg_txt = msg_font.render('Do you want to go first?', True, COLOURS['black'])
+        
+        self._display.blit(msg_txt, (133, 195))
+    
+    def yes_fnt(self):
+        self.game_board.player_first = True
+        self.remove_popup()
+    
+    def no_fnt(self):
+        self.game_board.player_first = False
+        self.remove_popup()
+    
+    def remove_popup(self):
+        self.game_board.on_init()
+        self.main_loop.hand_control(self.game_board)
 
 class GameBoard():
     def __init__(self, main_loop: MainLoop, difficulty, mode):
         self._display = None
         self.main_loop = main_loop
-        self.main_loop.curr_frame = self
+        self.main_loop.hand_control(self)
         self.difficulty = difficulty
         self.mode = mode
-        # if self.mode == 'Single':
-            
+        self.player_first = True
+        
         self.game_logic = GameLogic(self, mode, difficulty)
         self.board = [['', '', ''],
                     ['', '', ''],
                     ['', '', '']]
         
-        self.on_init()
+        if self.mode == 'Single':
+            Popup(self.main_loop, self)
+        else:
+            self.on_init()
     
     def on_init(self):
         self._display = pygame.Surface((DWIDTH, DHEIGHT))
         
         self.draw_static_elements()
         DISPLAY.blit(self._display, (0, 0))
+        
+        if not self.player_first:
+            self.game_logic.run()
+        
         pygame.display.update()
     
     def on_event(self, event):
@@ -253,7 +302,7 @@ class GameBoard():
                         if self.board[index1][index2] == '':
                             self.place_at(index1, index2, x, y, True)
                             
-                            if self.mode == 'Single':
+                            if self.mode == 'Single' and not self.game_logic.check_win_state():
                                 self.game_logic.run()
                             break
                     if x + 168 == 504:
@@ -280,13 +329,13 @@ class GameBoard():
                 if self.game_logic.turns >= 4:
                     if self.game_logic.check_win_state():
                         print(self.game_logic.turn, 'wins!')
-                        return
+                        break
                     if self.game_logic.turns == 8:
                         print('Tie!')
-                        return
+                        break
                 
                 self.game_logic.next_turn()
-                return
+                break
             if x + 168 == 504:
                 x = 0
                 y += 168
